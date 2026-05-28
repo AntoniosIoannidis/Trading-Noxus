@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Trading-Noxus AI</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body>
+  <div class="app-container">
+    
+    <!-- 1. API Key Setup Screen -->
+    <div id="setup-screen" class="screen hidden">
+      <div class="setup-logo">
+        <div class="logo-circle">N</div>
+        <h1>Trading-Noxus AI</h1>
+        <p>Institutional-grade quantitative analysis directly in your browser.</p>
+      </div>
+      <div class="setup-card">
+        <label for="api-key-input">Gemini API Key</label>
+        <input type="password" id="api-key-input" placeholder="Paste your API key here..." />
+        <button id="save-key-btn">Initialize Assistant</button>
+        <span class="api-help">Don't have a key? Get one free from <a href="https://aistudio.google.com/" target="_blank">Google AI Studio</a>.</span>
+      </div>
+    </div>
+
+    <!-- 2. Main Active Dashboard Screen -->
+    <div id="main-screen" class="screen">
+      
+      <!-- Top Header -->
+      <header class="app-header">
+        <div class="brand">
+          <span class="brand-logo">N</span>
+          <span class="brand-text">Noxus AI</span>
+          <span class="live-pulse" id="market-status" title="Connecting to market feed..."></span>
+        </div>
+        <div class="header-actions">
+          <button id="settings-toggle-btn" title="API Settings">⚙️</button>
+        </div>
+      </header>
+
+      <!-- Active Symbol Ribbon -->
+      <div class="symbol-ribbon">
+        <div class="symbol-details">
+          <span id="active-ticker" class="ticker-text">SELECT ASSET</span>
+          <span id="active-name" class="name-text">No tab detected. Open Yahoo Finance or TradingView.</span>
+        </div>
+        <div class="price-details">
+          <span id="active-price" class="price-text">—</span>
+          <span id="active-change" class="change-text">—</span>
+        </div>
+      </div>
+
+      <!-- Segmented Navigation Control -->
+      <nav class="nav-tabs">
+        <button class="nav-tab active" data-tab="signals">🎯 Signals</button>
+        <button class="nav-tab" data-tab="agents">🤖 Agents</button>
+        <button class="nav-tab" data-tab="portfolio">💼 Portfolio</button>
+      </nav>
+
+      <!-- Content Panels -->
+      <main class="panel-content">
+        
+        <!-- Tab 1: Signals Panel -->
+        <section id="panel-signals" class="tab-panel active">
+          
+          <div class="signal-card">
+            <div class="signal-header">
+              <span class="section-title">Execution Verdict</span>
+              <span id="consensus-rating" class="rating-badge rating-wait">CONNECTING</span>
+            </div>
+            
+            <div class="signal-metrics">
+              <div class="metric-box">
+                <span class="box-label">Entry Range</span>
+                <span id="signal-entry" class="box-value">—</span>
+              </div>
+              <div class="metric-box">
+                <span class="box-label">Take Profit</span>
+                <span id="signal-tp" class="box-value value-profit">—</span>
+              </div>
+              <div class="metric-box">
+                <span class="box-label">Stop Loss</span>
+                <span id="signal-sl" class="box-value value-loss">—</span>
+              </div>
+            </div>
+
+            <div class="confidence-container">
+              <div class="confidence-header">
+                <span>AI Confidence Meter</span>
+                <span id="confidence-percentage">0%</span>
+              </div>
+              <div class="confidence-track">
+                <div id="confidence-bar" class="confidence-fill" style="width: 0%;"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="consensus-box">
+            <span class="box-title">Committee Consensus Summary</span>
+            <p id="consensus-text" class="consensus-desc">
+              Awaiting active stock page navigation. Open a ticker on TradingView, Yahoo Finance, or CoinMarketCap to automatically initialize the AI Committee analysis.
+            </p>
+          </div>
+
+          <div id="trigger-analysis-box" class="analysis-action hidden">
+            <button id="trigger-analysis-btn">⚡ Run AI Committee Audit</button>
+          </div>
+        </section>
+
+        <!-- Tab 2: Agents Panel -->
+        <section id="panel-agents" class="tab-panel">
+          <div class="agents-list">
+            
+            <!-- Agent 1: Tech -->
+            <div class="agent-card">
+              <div class="agent-title">
+                <span class="agent-icon">📈</span>
+                <span class="agent-name">Technical Analyst Agent</span>
+                <span id="agent-tech-status" class="agent-verdict verdict-neutral">SLEEPING</span>
+              </div>
+              <div class="agent-body">
+                <div class="indicator-strip" id="tech-indicators">
+                  <span class="indicator-pill">RSI: <span id="ind-rsi">—</span></span>
+                  <span class="indicator-pill">SMA 20: <span id="ind-sma">—</span></span>
+                  <span class="indicator-pill">Trend: <span id="ind-trend">—</span></span>
+                </div>
+                <p id="agent-tech-verdict" class="agent-comment">Awaiting market chart data feed...</p>
+              </div>
+            </div>
+
+            <!-- Agent 2: Fundamental -->
+            <div class="agent-card">
+              <div class="agent-title">
+                <span class="agent-icon">📋</span>
+                <span class="agent-name">Fundamental Analyst Agent</span>
+                <span id="agent-fund-status" class="agent-verdict verdict-neutral">SLEEPING</span>
+              </div>
+              <div class="agent-body">
+                <div class="indicator-strip" id="fund-indicators">
+                  <span class="indicator-pill">P/E: <span id="ind-pe">—</span></span>
+                  <span class="indicator-pill">Margin: <span id="ind-margin">—</span></span>
+                  <span class="indicator-pill">Moat: <span id="ind-moat">—</span></span>
+                </div>
+                <p id="agent-fund-verdict" class="agent-comment">Awaiting key financial statistics feed...</p>
+              </div>
+            </div>
+
+            <!-- Agent 3: Sentiment -->
+            <div class="agent-card">
+              <div class="agent-title">
+                <span class="agent-icon">🗣️</span>
+                <span class="agent-name">Crowd Sentiment Agent</span>
+                <span id="agent-sent-status" class="agent-verdict verdict-neutral">SLEEPING</span>
+              </div>
+              <div class="agent-body">
+                <div class="indicator-strip" id="sent-indicators">
+                  <span class="indicator-pill">News: <span id="ind-news">—</span></span>
+                  <span class="indicator-pill">Buzz: <span id="ind-buzz">—</span></span>
+                </div>
+                <p id="agent-sent-verdict" class="agent-comment">Awaiting financial news feed...</p>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- Tab 3: Portfolio Simulator Panel -->
+        <section id="panel-portfolio" class="tab-panel">
+          
+          <!-- Live Portfolio Summary -->
+          <div class="portfolio-stats-card">
+            <div class="stat-group">
+              <span class="stat-label">Net Balance</span>
+              <span id="port-balance" class="stat-value">$100,000.00</span>
+            </div>
+            <div class="stat-group">
+              <span class="stat-label">Open P&L</span>
+              <span id="port-unrealized-pnl" class="stat-value pnl-neutral">$0.00</span>
+            </div>
+            <div class="stat-group">
+              <span class="stat-label">Win Rate</span>
+              <span id="port-winrate" class="stat-value">0%</span>
+            </div>
+          </div>
+
+          <!-- Trade Placement Tools -->
+          <div class="action-buttons">
+            <button id="sim-buy-btn" class="trade-btn buy-btn" disabled>🟢 Sim BUY Market</button>
+            <button id="sim-sell-btn" class="trade-btn sell-btn" disabled>🔴 Sim SELL Market</button>
+          </div>
+
+          <!-- Active Positions -->
+          <div class="positions-container">
+            <span class="section-title">Open Positions</span>
+            <div id="positions-list" class="positions-list">
+              <div class="no-positions">No open positions. Use the market buttons above to simulate trades.</div>
+            </div>
+          </div>
+
+          <!-- Closed Trade History -->
+          <div class="history-container">
+            <span class="section-title">Trading History Logs</span>
+            <div id="history-list" class="history-list">
+              <div class="no-history">No trading history logs recorded yet.</div>
+            </div>
+            <div class="reset-container">
+              <button id="reset-portfolio-btn">Reset Trading History</button>
+            </div>
+          </div>
+        </section>
+
+      </main>
+
+      <!-- Settings overlay panel (hidden by default) -->
+      <div id="settings-overlay" class="overlay hidden">
+        <div class="overlay-card">
+          <div class="overlay-header">
+            <h3>Noxus Settings</h3>
+            <button id="settings-close-btn">×</button>
+          </div>
+          <div class="overlay-body">
+            <label for="settings-key-input">Gemini API Key</label>
+            <input type="password" id="settings-key-input" placeholder="Paste your API key here..." />
+            <button id="settings-save-btn">Update Key</button>
+            <span class="overlay-help">Configured key is stored securely in local browser extension memory.</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  
+  <script src="sidepanel.js"></script>
+</body>
+</html>

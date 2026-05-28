@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Trading-Noxus AI",
+  "version": "1.0",
+  "description": "An autonomous AI Multi-Agent Quantitative Assistant that analyzes charts, fundamentals, and sentiment on top of trading apps.",
+  "permissions": [
+    "sidePanel",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://query1.finance.yahoo.com/*",
+    "https://query2.finance.yahoo.com/*",
+    "https://generativelanguage.googleapis.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.finance.yahoo.com/*",
+        "*://*.tradingview.com/*",
+        "*://*.coinmarketcap.com/*",
+        "*://*.trading212.com/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "action": {
+    "default_title": "Open Trading-Noxus Panel"
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
