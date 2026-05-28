@@ -25,19 +25,54 @@ let portfolio = {
 };
 
 // Initialize Extension Sidepanel
+async function backgroundFetch(url, options = {}) {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({
+      type: "FETCH_DATA",
+      url: url,
+      options: options
+    }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (response && response.success) {
+        resolve({
+          ok: true,
+          status: response.status || 200,
+          json: async () => JSON.parse(response.data),
+          text: async () => response.data
+        });
+      } else {
+        reject(new Error(response ? response.error : "Unknown background fetch error"));
+      }
+    });
+  });
+}
+
 document.addEventListener("DOMContentLoaded", async () => {
   await loadSettings();
   setupUIEventListeners();
   
-  // Try to find the active ticker immediately on load
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs && tabs[0]) {
-      // Direct message content script or let content script fire naturally
-      chrome.tabs.sendMessage(tabs[0].id, { type: "GET_CURRENT_TICKER" }, (response) => {
-        if (response && response.ticker) {
-          handleNewTicker(response.ticker);
-        }
-      });
+  // Try to find the active ticker immediately on load, checking tab domain first to prevent connection errors
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+    if (tabs && tabs[0] && tabs[0].url) {
+      const url = tabs[0].url;
+      const isSupported = ["finance.yahoo.com", "tradingview.com", "coinmarketcap.com", "trading212.com"].some(domain => url.includes(domain));
+      if (isSupported) {
+        chrome.tabs.sendMessage(tabs[0].id, { type: "GET_CURRENT_TICKER" }, (response) => {
+          if (chrome.runtime.lastError) {
+            // Content script is not injected yet (e.g. extension was just reloaded). Prompt user to refresh.
+            document.getElementById("active-name").innerHTML = `
+              Noxus AI linked. <span style="color: var(--color-cyan); font-weight: 700;">Please refresh this tab</span> to initialize the live feed!
+            `;
+            return;
+          }
+          if (response && response.ticker) {
+            handleNewTicker(response.ticker);
+          }
+        });
+      }
     }
   });
 });
@@ -112,6 +147,13 @@ function setupUIEventListeners() {
 
   // Reset Portfolio log button
   document.getElementById("reset-portfolio-btn").addEventListener("click", resetPortfolioHistory);
+
+  // Click active ticker to open TradingView
+  document.getElementById("active-ticker").addEventListener("click", () => {
+    if (activeTicker && activeTicker !== "SELECT ASSET") {
+      chrome.tabs.create({ url: `https://www.tradingview.com/chart/?symbol=${activeTicker}` });
+    }
+  });
 }
 
 // Save Gemini API Key
@@ -142,17 +184,96 @@ chrome.runtime.onMessage.addListener((message) => {
   }
 });
 
+// Clean Company Names before passing to search
+function cleanCompanyName(name) {
+  if (!name) return "";
+  return name
+    .replace(/\b(Inc|Corp|Ltd|plc|Co|Group|S\.A\.|Holdings|Corporation|Incorporated|Limited|Capital|Partners)\b/ig, "")
+    .replace(/[\,\.\-\(\)\/]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Resolve Ticker using Yahoo Search API
+async function resolveTickerSymbol(query) {
+  if (!query) return { symbol: "", name: "" };
+  
+  // If it already looks like a neat short ticker, check if it works or bypasses search
+  const cleanQuery = cleanCompanyName(query);
+  if (!cleanQuery) return { symbol: query, name: query + " Spot Asset" };
+  
+  try {
+    const searchUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(cleanQuery)}`;
+    const res = await backgroundFetch(searchUrl);
+    const data = await res.json();
+    if (data.quotes && data.quotes.length > 0) {
+      const bestQuote = data.quotes[0];
+      return {
+        symbol: bestQuote.symbol,
+        name: bestQuote.longname || bestQuote.shortname || bestQuote.symbol
+      };
+    }
+  } catch (e) {
+    console.error("[Noxus] Error resolving symbol via Yahoo Search:", e);
+  }
+  return { symbol: query.toUpperCase(), name: query + " Spot Asset" };
+}
+
+// Update Platform Shortcut Action Buttons
+function updateShortcutLinks(ticker) {
+  const shortcutBar = document.getElementById("shortcut-bar");
+  if (!ticker || ticker === "SELECT ASSET") {
+    shortcutBar.classList.add("hidden");
+    return;
+  }
+  
+  shortcutBar.classList.remove("hidden");
+  
+  // Set up click handlers
+  const tvBtn = document.getElementById("btn-tradingview");
+  const t212Btn = document.getElementById("btn-trading212");
+  const yahooBtn = document.getElementById("btn-yahoo");
+  
+  tvBtn.onclick = () => {
+    chrome.tabs.create({ url: `https://www.tradingview.com/chart/?symbol=${ticker}` });
+  };
+  
+  t212Btn.onclick = () => {
+    // Open Trading 212 app search or landing page
+    chrome.tabs.create({ url: `https://live.trading212.com/` });
+  };
+  
+  yahooBtn.onclick = () => {
+    chrome.tabs.create({ url: `https://finance.yahoo.com/quote/${ticker}` });
+  };
+}
+
 // Handle Stock Switch
 async function handleNewTicker(ticker) {
-  if (ticker === activeTicker) return;
-  activeTicker = ticker;
+  if (!ticker) return;
   
   // Set Loading Skeletons
-  document.getElementById("active-ticker").innerText = ticker;
-  document.getElementById("active-name").innerText = "Connecting live feed...";
+  document.getElementById("active-ticker").innerText = ticker.toUpperCase();
+  document.getElementById("active-name").innerText = "Resolving asset symbol details...";
   document.getElementById("active-price").innerText = "—";
   document.getElementById("active-change").innerText = "—";
   document.getElementById("active-change").className = "change-text";
+  
+  // Resolve company name or generic query to precise Yahoo Finance Symbol
+  const resolved = await resolveTickerSymbol(ticker);
+  const resolvedTicker = resolved.symbol.toUpperCase();
+  const resolvedName = resolved.name;
+  
+  // Avoid re-fetching if activeTicker is already resolved and loaded
+  if (resolvedTicker === activeTicker && document.getElementById("active-price").innerText !== "—") {
+    return;
+  }
+  
+  activeTicker = resolvedTicker;
+  activeCompany = resolvedName;
+  
+  document.getElementById("active-ticker").innerText = resolvedTicker;
+  document.getElementById("active-name").innerText = resolvedName;
   
   // Enable Simulator buttons
   document.getElementById("sim-buy-btn").disabled = false;
@@ -161,16 +282,19 @@ async function handleNewTicker(ticker) {
   // Update Live Pulse to green/flashing indicating search is live
   const pulse = document.getElementById("market-status");
   pulse.className = "live-pulse live-active";
-  pulse.title = `Linked dynamically to ${ticker}`;
+  pulse.title = `Linked dynamically to ${resolvedTicker}`;
 
   // Reset consensus displays
   document.getElementById("consensus-rating").className = "rating-badge rating-wait";
   document.getElementById("consensus-rating").innerText = "CALCULATING";
-  document.getElementById("consensus-text").innerText = `Noxus AI is gathering market technical data, fundamental balance sheets, and social news volumes for ${ticker}. Awaiting board consensus...`;
+  document.getElementById("consensus-text").innerText = `Noxus AI is gathering market technical data, fundamental balance sheets, and social news volumes for ${resolvedTicker}. Awaiting board consensus...`;
   document.getElementById("trigger-analysis-box").classList.add("hidden");
   
+  // Update the platform shortcuts immediately
+  updateShortcutLinks(resolvedTicker);
+  
   // Fetch market data
-  await fetchMarketData(ticker);
+  await fetchMarketData(resolvedTicker);
 }
 
 // Fetch Market Data from Public Yahoo API (Free, CORS-bypassing inside Extension)
@@ -178,7 +302,7 @@ async function fetchMarketData(ticker) {
   try {
     // 1. Fetch Intraday Candlestick Chart Data (last 30 days)
     const chartUrl = `https://query1.finance.yahoo.com/v8/finance/chart/${ticker}?range=1mo&interval=1d`;
-    const chartRes = await fetch(chartUrl);
+    const chartRes = await backgroundFetch(chartUrl);
     const chartData = await chartRes.json();
     
     if (chartData.chart && chartData.chart.result && chartData.chart.result[0]) {
@@ -220,7 +344,7 @@ async function fetchMarketData(ticker) {
     // 2. Fetch Fundamentals metrics
     const statsUrl = `https://query1.finance.yahoo.com/v11/finance/quoteSummary/${ticker}?modules=defaultKeyStatistics,financialData,summaryDetail`;
     try {
-      const statsRes = await fetch(statsUrl);
+      const statsRes = await backgroundFetch(statsUrl);
       const statsData = await statsRes.json();
       if (statsData.quoteSummary && statsData.quoteSummary.result && statsData.quoteSummary.result[0]) {
         parseFundamentalStats(statsData.quoteSummary.result[0]);
@@ -232,7 +356,7 @@ async function fetchMarketData(ticker) {
     // 3. Fetch sentiment news titles
     const searchUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${ticker}`;
     try {
-      const searchRes = await fetch(searchUrl);
+      const searchRes = await backgroundFetch(searchUrl);
       const searchData = await searchRes.json();
       if (searchData.news) {
         parseSentimentNews(searchData.news);
@@ -387,7 +511,7 @@ async function runAIAnalysisCommittee() {
     
     // REST API Endpoint call for Gemini 1.5 Flash
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
-    const response = await fetch(apiUrl, {
+    const response = await backgroundFetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

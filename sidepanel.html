@@ -42,12 +42,24 @@
       <div class="symbol-ribbon">
         <div class="symbol-details">
           <span id="active-ticker" class="ticker-text">SELECT ASSET</span>
-          <span id="active-name" class="name-text">No tab detected. Open Yahoo Finance or TradingView.</span>
+          <span id="active-name" class="name-text">
+            No tab detected. Open 
+            <a href="https://finance.yahoo.com" target="_blank" class="text-link">Yahoo Finance</a>, 
+            <a href="https://www.tradingview.com" target="_blank" class="text-link">TradingView</a>, or 
+            <a href="https://live.trading212.com" target="_blank" class="text-link">Trading 212</a>.
+          </span>
         </div>
         <div class="price-details">
           <span id="active-price" class="price-text">—</span>
           <span id="active-change" class="change-text">—</span>
         </div>
+      </div>
+
+      <!-- Quick Platform Shortcuts -->
+      <div id="shortcut-bar" class="shortcut-bar hidden">
+        <button id="btn-tradingview" class="shortcut-btn tv-btn">📈 TradingView</button>
+        <button id="btn-trading212" class="shortcut-btn t212-btn">🔵 Trading 212</button>
+        <button id="btn-yahoo" class="shortcut-btn yahoo-btn">💜 Yahoo Finance</button>
       </div>
 
       <!-- Segmented Navigation Control -->
@@ -98,7 +110,11 @@
           <div class="consensus-box">
             <span class="box-title">Committee Consensus Summary</span>
             <p id="consensus-text" class="consensus-desc">
-              Awaiting active stock page navigation. Open a ticker on TradingView, Yahoo Finance, or CoinMarketCap to automatically initialize the AI Committee analysis.
+              Awaiting active stock page navigation. Open a ticker on 
+              <a href="https://www.tradingview.com" target="_blank" class="text-link">TradingView</a>, 
+              <a href="https://finance.yahoo.com" target="_blank" class="text-link">Yahoo Finance</a>, or 
+              <a href="https://live.trading212.com" target="_blank" class="text-link">Trading 212</a> 
+              to automatically initialize the AI Committee analysis.
             </p>
           </div>
 
