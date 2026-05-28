@@ -54,13 +54,24 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadSettings();
   setupUIEventListeners();
   
-  // Try to find the active ticker immediately on load, checking tab domain first to prevent connection errors
-  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
-    if (tabs && tabs[0] && tabs[0].url) {
-      const url = tabs[0].url;
-      const isSupported = ["finance.yahoo.com", "tradingview.com", "coinmarketcap.com", "trading212.com"].some(domain => url.includes(domain));
-      if (isSupported) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: "GET_CURRENT_TICKER" }, (response) => {
+  // Try to find the active ticker immediately on load by querying active tabs across ALL windows (robust focus bypass)
+  chrome.tabs.query({ active: true }, (tabs) => {
+    if (tabs && tabs.length > 0) {
+      // Find the first active tab that is on a supported platform (including regional variations)
+      const supportedDomains = [
+        "finance.yahoo.com", "tradingview.com", "coinmarketcap.com", 
+        "trading212.com", "trading212.co.uk", "trading212.de", 
+        "trading212.fr", "trading212.nl", "trading212.bg", "trading212.com.tr"
+      ];
+      const supportedTab = tabs.find(tab => {
+        if (tab && tab.url) {
+          return supportedDomains.some(domain => tab.url.includes(domain));
+        }
+        return false;
+      });
+
+      if (supportedTab) {
+        chrome.tabs.sendMessage(supportedTab.id, { type: "GET_CURRENT_TICKER" }, (response) => {
           if (chrome.runtime.lastError) {
             // Content script is not injected yet (e.g. extension was just reloaded). Prompt user to refresh.
             document.getElementById("active-name").innerHTML = `
@@ -198,9 +209,35 @@ function cleanCompanyName(name) {
 async function resolveTickerSymbol(query) {
   if (!query) return { symbol: "", name: "" };
   
-  // If it already looks like a neat short ticker, check if it works or bypasses search
-  const cleanQuery = cleanCompanyName(query);
+  const cleanQuery = cleanCompanyName(query).trim();
   if (!cleanQuery) return { symbol: query, name: query + " Spot Asset" };
+  
+  // Fast high-speed local dictionary fallback for major market leaders
+  const upperQuery = cleanQuery.toUpperCase();
+  const popularAssetsFallback = {
+    "NVIDIA": { symbol: "NVDA", name: "NVIDIA Corporation" },
+    "NVIDIA CORP": { symbol: "NVDA", name: "NVIDIA Corporation" },
+    "APPLE": { symbol: "AAPL", name: "Apple Inc." },
+    "APPLE INC": { symbol: "AAPL", name: "Apple Inc." },
+    "TESLA": { symbol: "TSLA", name: "Tesla, Inc." },
+    "TESLA INC": { symbol: "TSLA", name: "Tesla, Inc." },
+    "MICROSOFT": { symbol: "MSFT", name: "Microsoft Corporation" },
+    "MICROSOFT CORP": { symbol: "MSFT", name: "Microsoft Corporation" },
+    "AMAZON": { symbol: "AMZN", name: "Amazon.com, Inc." },
+    "AMAZON COM": { symbol: "AMZN", name: "Amazon.com, Inc." },
+    "GOOGLE": { symbol: "GOOGL", name: "Alphabet Inc." },
+    "ALPHABET": { symbol: "GOOGL", name: "Alphabet Inc." },
+    "AMD": { symbol: "AMD", name: "Advanced Micro Devices, Inc." },
+    "ADVANCED MICRO DEVICES": { symbol: "AMD", name: "Advanced Micro Devices, Inc." },
+    "META": { symbol: "META", name: "Meta Platforms, Inc." },
+    "FACEBOOK": { symbol: "META", name: "Meta Platforms, Inc." },
+    "NETFLIX": { symbol: "NFLX", name: "Netflix, Inc." },
+    "COINBASE": { symbol: "COIN", name: "Coinbase Global, Inc." }
+  };
+
+  if (popularAssetsFallback[upperQuery]) {
+    return popularAssetsFallback[upperQuery];
+  }
   
   try {
     const searchUrl = `https://query2.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(cleanQuery)}`;

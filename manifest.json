@@ -22,7 +22,13 @@
         "*://*.finance.yahoo.com/*",
         "*://*.tradingview.com/*",
         "*://*.coinmarketcap.com/*",
-        "*://*.trading212.com/*"
+        "*://*.trading212.com/*",
+        "*://*.trading212.co.uk/*",
+        "*://*.trading212.de/*",
+        "*://*.trading212.fr/*",
+        "*://*.trading212.nl/*",
+        "*://*.trading212.bg/*",
+        "*://*.trading212.com.tr/*"
       ],
       "js": ["content.js"],
       "run_at": "document_end",
