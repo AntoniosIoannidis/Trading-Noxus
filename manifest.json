@@ -6,7 +6,8 @@
   "permissions": [
     "sidePanel",
     "storage",
-    "tabs"
+    "tabs",
+    "cookies"
   ],
   "host_permissions": [
     "https://query1.finance.yahoo.com/*",

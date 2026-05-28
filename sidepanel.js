@@ -44,7 +44,19 @@ async function backgroundFetch(url, options = {}) {
           text: async () => response.data
         });
       } else {
-        reject(new Error(response ? response.error : "Unknown background fetch error"));
+        // Try to extract meaningful error from the API response body
+        let errorMsg = "Unknown background fetch error";
+        if (response && response.data) {
+          try {
+            const errBody = JSON.parse(response.data);
+            errorMsg = (errBody.error && errBody.error.message) || response.data;
+          } catch {
+            errorMsg = response.data.substring(0, 200);
+          }
+        } else if (response && response.error) {
+          errorMsg = response.error;
+        }
+        reject(new Error(errorMsg));
       }
     });
   });
@@ -54,36 +66,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   await loadSettings();
   setupUIEventListeners();
   
-  // Try to find the active ticker immediately on load by querying active tabs across ALL windows (robust focus bypass)
-  chrome.tabs.query({ active: true }, (tabs) => {
-    if (tabs && tabs.length > 0) {
-      // Find the first active tab that is on a supported platform (including regional variations)
-      const supportedDomains = [
-        "finance.yahoo.com", "tradingview.com", "coinmarketcap.com", 
-        "trading212.com", "trading212.co.uk", "trading212.de", 
-        "trading212.fr", "trading212.nl", "trading212.bg", "trading212.com.tr"
-      ];
-      const supportedTab = tabs.find(tab => {
-        if (tab && tab.url) {
-          return supportedDomains.some(domain => tab.url.includes(domain));
-        }
-        return false;
-      });
-
-      if (supportedTab) {
-        chrome.tabs.sendMessage(supportedTab.id, { type: "GET_CURRENT_TICKER" }, (response) => {
-          if (chrome.runtime.lastError) {
-            // Content script is not injected yet (e.g. extension was just reloaded). Prompt user to refresh.
-            document.getElementById("active-name").innerHTML = `
-              Noxus AI linked. <span style="color: var(--color-cyan); font-weight: 700;">Please refresh this tab</span> to initialize the live feed!
-            `;
-            return;
-          }
-          if (response && response.ticker) {
-            handleNewTicker(response.ticker);
-          }
-        });
-      }
+  // Ask the background service worker for the cached ticker (works instantly, no tab communication needed)
+  chrome.runtime.sendMessage({ type: "GET_LAST_TICKER" }, (response) => {
+    if (chrome.runtime.lastError) return;
+    if (response && response.ticker) {
+      handleNewTicker(response.ticker);
     }
   });
 });
@@ -546,8 +533,8 @@ async function runAIAnalysisCommittee() {
     Provide only the raw JSON output in your response without any backticks, markdown wrapping, or conversational intro.
     `;
     
-    // REST API Endpoint call for Gemini 1.5 Flash
-    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+    // REST API Endpoint call for Gemini 2.0 Flash
+    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`;
     const response = await backgroundFetch(apiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
