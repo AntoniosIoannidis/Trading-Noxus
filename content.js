@@ -5,84 +5,106 @@ function parseTicker() {
   let ticker = "";
   const url = window.location.href;
 
-  if (url.includes("finance.yahoo.com")) {
-    // Parse Yahoo Finance quotes standard format (e.g., https://finance.yahoo.com/quote/AAPL/)
-    const match = url.match(/\/quote\/([A-Za-z0-9\.\=\-]+)/);
-    if (match && match[1]) {
-      // Exclude generic suffixes or page actions
-      const parsed = match[1].split("?")[0];
-      if (parsed && parsed.toUpperCase() !== "QUOTE") {
-        ticker = parsed.toUpperCase();
-      }
+  // 1. Try to parse from URL query parameters (extremely powerful for embedded charts/iframes)
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    const symbolParam = urlParams.get("symbol") || urlParams.get("ticker") || urlParams.get("pair") || urlParams.get("value");
+    if (symbolParam && symbolParam.length < 15) {
+      ticker = symbolParam.split(":").pop().trim().toUpperCase();
     }
-  } else if (url.includes("tradingview.com")) {
-    // Parse TradingView symbols format (e.g., https://www.tradingview.com/symbols/NASDAQ-AAPL/)
-    const match = url.match(/\/symbols\/([A-Za-z0-9]+)\-([A-Za-z0-9\.\-]+)/);
-    if (match && match[2]) {
-      ticker = match[2].toUpperCase();
-    } else if (url.includes("/chart/")) {
-      // Try to find the active symbol from the DOM first
-      const tvSelectors = [
-        "[data-name='legend-series-item-title']",
-        ".symbol-title",
-        ".chart-controls-symbol-selector",
-        "#header-toolbar-symbol-search"
-      ];
-      const tvEl = document.querySelector(tvSelectors.join(", "));
-      if (tvEl && tvEl.innerText) {
-        ticker = tvEl.innerText.trim().toUpperCase();
-      } else {
-        // Fallback to check document title (e.g., "AAPL Chart - TradingView")
-        const titleMatch = document.title.match(/^([A-Za-z0-9\.\-]+)\s+/);
-        if (titleMatch && titleMatch[1]) {
-          ticker = titleMatch[1].toUpperCase();
+  } catch (e) {}
+
+  // 2. Platform-specific fallbacks
+  if (!ticker) {
+    if (url.includes("finance.yahoo.com")) {
+      const match = url.match(/\/quote\/([A-Za-z0-9\.\=\-]+)/);
+      if (match && match[1]) {
+        const parsed = match[1].split("?")[0];
+        if (parsed && parsed.toUpperCase() !== "QUOTE") {
+          ticker = parsed.toUpperCase();
         }
       }
-    }
-  } else if (url.includes("trading212.com")) {
-    // Parse Trading 212 active instrument details using extensive class wildcards to combat minification
-    const selectors = [
-      ".instrument-name",
-      ".instrument-title",
-      ".chart-title",
-      ".chart-header__title",
-      ".chart-header__symbol",
-      ".instrument-info__name",
-      ".equity-title",
-      "[class*='instrument-name']",
-      "[class*='instrument-title']",
-      "[class*='chart-title']",
-      "[class*='chart-header']",
-      "[class*='equity-title']",
-      "[class*='instrument-info']",
-      "[class*='equityHeader']",
-      "[data-qa='instrument-name']",
-      "[data-qa='chart-title']",
-      "[data-qa='instrument-title']"
-    ];
-    const activeHeader = document.querySelector(selectors.join(", "));
-    if (activeHeader && activeHeader.innerText) {
-      ticker = activeHeader.innerText.split("-")[0].trim();
-    } else {
-      // Match anything before the hyphen or dash in browser title
-      const titleMatch = document.title.match(/^([^\-\—]+)\s+[\-\—]/);
-      if (titleMatch && titleMatch[1]) {
-        ticker = titleMatch[1].trim();
+    } else if (url.includes("tradingview.com")) {
+      const match = url.match(/\/symbols\/([A-Za-z0-9]+)\-([A-Za-z0-9\.\-]+)/);
+      if (match && match[2]) {
+        ticker = match[2].toUpperCase();
+      } else if (url.includes("/chart/")) {
+        const tvSelectors = [
+          "[data-name='legend-series-item-title']",
+          ".symbol-title",
+          ".chart-controls-symbol-selector",
+          "#header-toolbar-symbol-search"
+        ];
+        const tvEl = document.querySelector(tvSelectors.join(", "));
+        if (tvEl && tvEl.innerText) {
+          ticker = tvEl.innerText.trim().toUpperCase();
+        } else {
+          const titleMatch = document.title.match(/^([A-Za-z0-9\.\-]+)\s+/);
+          if (titleMatch && titleMatch[1]) {
+            ticker = titleMatch[1].toUpperCase();
+          }
+        }
       }
-    }
+    } else if (url.includes("trading212.com")) {
+      // Parse Trading 212 DOM using extensive class wildcards
+      const selectors = [
+        ".instrument-name",
+        ".instrument-title",
+        ".chart-title",
+        ".chart-header__title",
+        ".chart-header__symbol",
+        ".instrument-info__name",
+        ".equity-title",
+        "[class*='instrument-name']",
+        "[class*='instrument-title']",
+        "[class*='chart-title']",
+        "[class*='chart-header']",
+        "[class*='equity-title']",
+        "[class*='instrument-info']",
+        "[class*='equityHeader']",
+        "[data-qa='instrument-name']",
+        "[data-qa='chart-title']",
+        "[data-qa='instrument-title']"
+      ];
+      const activeHeader = document.querySelector(selectors.join(", "));
+      if (activeHeader && activeHeader.innerText) {
+        ticker = activeHeader.innerText.split("-")[0].trim();
+      } else {
+        // Smart split of document title to support any platform layout
+        const titleParts = document.title.split(/[\-\—\–]/);
+        for (let part of titleParts) {
+          const cleanPart = part.trim();
+          if (cleanPart) {
+            const lowerPart = cleanPart.toLowerCase();
+            if (
+              !lowerPart.includes("trading 212") &&
+              lowerPart !== "demo" &&
+              lowerPart !== "live" &&
+              lowerPart !== "cfd" &&
+              lowerPart !== "invest" &&
+              lowerPart !== "isa" &&
+              lowerPart !== "trading"
+            ) {
+              ticker = cleanPart;
+              break;
+            }
+          }
+        }
+      }
 
-    // Exclude generic platform names/titles
-    if (ticker) {
-      const lowerTicker = ticker.toLowerCase();
-      if (
-        lowerTicker.includes("trading 212") || 
-        lowerTicker === "demo" || 
-        lowerTicker === "live" || 
-        lowerTicker === "cfd" || 
-        lowerTicker === "invest" ||
-        lowerTicker === "isa"
-      ) {
-        ticker = "";
+      // Exclude generic platform names/titles
+      if (ticker) {
+        const lowerTicker = ticker.toLowerCase();
+        if (
+          lowerTicker.includes("trading 212") || 
+          lowerTicker === "demo" || 
+          lowerTicker === "live" || 
+          lowerTicker === "cfd" || 
+          lowerTicker === "invest" ||
+          lowerTicker === "isa"
+        ) {
+          ticker = "";
+        }
       }
     }
   }
