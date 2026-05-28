@@ -1,5 +1,7 @@
 // Trading-Noxus Background Service Worker
 
+const USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
 // Configure side panel to open on icon click
 chrome.runtime.onInstalled.addListener(() => {
   if (chrome.sidePanel && chrome.sidePanel.setPanelBehavior) {
@@ -48,7 +50,7 @@ async function acquireYahooSession() {
       method: "GET",
       headers: {
         "Cookie": cookieStr,
-        "User-Agent": "Mozilla/5.0"
+        "User-Agent": USER_AGENT
       },
       credentials: "include"
     });
@@ -77,10 +79,9 @@ async function acquireYahooSession() {
     return { crumb: "", cookie: "" };
   }
 }
-
-// Inject crumb and cookies into Yahoo Finance API requests
+// Inject crumb and cookies into Yahoo Finance API requests (excluding public search)
 function isYahooApiUrl(url) {
-  return url.includes("query1.finance.yahoo.com") || url.includes("query2.finance.yahoo.com");
+  return (url.includes("query1.finance.yahoo.com") || url.includes("query2.finance.yahoo.com")) && !url.includes("/v1/finance/search");
 }
 
 function injectYahooAuth(url, options, crumb, cookie) {
@@ -91,10 +92,11 @@ function injectYahooAuth(url, options, crumb, cookie) {
   // Inject cookie into headers
   const headers = { ...(options.headers || {}) };
   headers["Cookie"] = cookie;
-  headers["User-Agent"] = "Mozilla/5.0";
+  headers["User-Agent"] = USER_AGENT;
 
   return { url: authedUrl, options: { ...options, headers } };
 }
+
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "TICKER_DETECTED") {
@@ -122,6 +124,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         let fetchUrl = url;
         let fetchOptions = { ...options };
+
+        // Ensure realistic User-Agent for all Yahoo Finance calls to bypass bot trackers
+        if (url.includes("yahoo.com")) {
+          if (!fetchOptions.headers) fetchOptions.headers = {};
+          fetchOptions.headers["User-Agent"] = USER_AGENT;
+        }
 
         // If this is a Yahoo Finance API call, inject crumb + cookies
         if (isYahooApiUrl(url)) {
